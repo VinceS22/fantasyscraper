@@ -17,7 +17,8 @@
   },
   "homepage": "https://github.com/VinceS22/fantasyscraper#readme",
   "dependencies": {
-    "express": "^4.14.0"
+    "express": "^4.14.0",
+    "http": "0.0.0"
   },
   "devDependencies": {
     "eslint": "^3.12.2",
