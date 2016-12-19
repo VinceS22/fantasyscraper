@@ -1,0 +1,26 @@
+{
+  "name": "fantasyscraper",
+  "version": "1.0.0",
+  "description": "Generates a JSON which contains Player data from websites that have the info.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VinceS22/fantasyscraper.git"
+  },
+  "author": "Vincent Smith",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/VinceS22/fantasyscraper/issues"
+  },
+  "homepage": "https://github.com/VinceS22/fantasyscraper#readme",
+  "dependencies": {
+    "express": "^4.14.0"
+  },
+  "devDependencies": {
+    "eslint": "^3.12.2",
+    "jshint": "^2.9.4"
+  }
+}
