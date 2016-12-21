@@ -7,6 +7,7 @@ var cheerio = require('cheerio');
 var playerCollection = [];
 var playerJSON = BuildEmptyPlayerJSON();
 var response = {};
+var sort = true;
 var allStatuses = ['Q', 'SSPD', 'IR'];
 var allPositions = ['QB', 'RB', 'D/ST', 'TE', 'WR', 'K'];
 var teams = ["NYJ", "SF", "DEN" , "MIA" ,"CLE", "MIN", "PHI", "HOU", "JAX", "ARI", "KC", "BAL", 
@@ -16,6 +17,49 @@ var teams = ["NYJ", "SF", "DEN" , "MIA" ,"CLE", "MIN", "PHI", "HOU", "JAX", "ARI
 Array.prototype.contains = function(element){
     return this.indexOf(element) > -1;
 };
+
+function sortByProjected(a,b)
+{
+    if(a.projected == b.projected)
+    {
+        if(a.name.toLowerCase() < b.name.toLowerCase())
+        {
+            return -1;
+        }
+        else if(a.name.toLowerCase() > b.name.toLowerCase())
+        {
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    else if(a.projected < b.projected)
+    {
+        return -1;
+    }
+    else
+    {
+        return 1;
+    }
+}
+
+function sortWholeJSON()
+{
+    playerJSON.RBs.sort(sortByProjected);
+    playerJSON.QBs.sort(sortByProjected);
+    playerJSON.TEs.sort(sortByProjected);
+    playerJSON.WRs.sort(sortByProjected);
+    playerJSON.Ks.sort(sortByProjected);
+    playerJSON.DSTs.sort(sortByProjected);
+}
+
+function BuildEmptyPlayerJSON()
+{
+    return { "RBs" : [], "QBs" : [], "TEs" : [], "WRs" : [], "Ks" : [], "DSTs" : []};
+}
+
 
 // Takes an HTML page and extracts player info from it.
 // @param playerTable A string containing the html which contains a player table.
@@ -130,11 +174,6 @@ function hydratePlayer(wordArray, originalString, projectedPoints)
     }
 }
 
-function BuildEmptyPlayerJSON()
-{
-    return { "RBs" : [], "QBs" : [], "TEs" : [], "WRs" : [], "Ks" : [], "DSTs" : []};
-}
-
 function Player(name, projected, team, positions, status)
 {
     // TODO: Make some of these into enums instead of straight strings.
@@ -149,11 +188,6 @@ function Player(name, projected, team, positions, status)
     // ex: "Q" for Questionable
     this.status = status;
 }
-function Team()
-{
-
-}
-
 
 // When we make a request to the website for players we need to add
 // events to handle data event and when end is called.
@@ -167,9 +201,14 @@ function handleGetRequestForPlayers(playerDataResponse) {
     playerDataResponse.on('end', function() {
         extractPlayerInfo(body);
         playerHttpRequestCompleteCount++;
-        if(playerHttpRequestCompleteCount >= playerHttpRequestCount-1)
+        if(playerHttpRequestCompleteCount >= playerHttpRequestCount)
         {
-            response.send(playerJSON);
+            if(sort)
+            {
+                sortWholeJSON();
+            }
+            response.json(playerJSON);
+            response.end();
         }
     });
 }
@@ -178,8 +217,12 @@ function handleGetRequestForPlayers(playerDataResponse) {
 app.get('/', function (req, res) {
     response = res;
     playerHttpRequestCompleteCount = 0;
+    playerJSON = BuildEmptyPlayerJSON();
     var hostname = req.query.hostname;
     var path = req.query.path;
+    var sortParam = req.query.sort;
+    // Sort by default, only if they don't want it sorted will we not sort it.
+    sort = sortParam != 'N';
     if (!hostname) {
         //"http%3A%2F%2Fgames.espn.com%2Fffl%2Ftools%2Fprojections"
         hostname = 'games.espn.com';
