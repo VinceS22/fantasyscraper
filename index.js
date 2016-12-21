@@ -7,6 +7,16 @@ var cheerio = require('cheerio');
 var playerCollection = [];
 var playerJSON = BuildEmptyPlayerJSON();
 var response = {};
+var allStatuses = ['Q', 'SSPD', 'IR'];
+var allPositions = ['QB', 'RB', 'D/ST', 'TE', 'WR', 'K'];
+var teams = ["NYJ", "SF", "DEN" , "MIA" ,"CLE", "MIN", "PHI", "HOU", "JAX", "ARI", "KC", "BAL", 
+"SEA", "CHI", "CIN", "SD", "LA", "PIT", "NYG", "TEN", "DAL", "IND", "CAR", "BUF", "TB", "GB", "DET", 
+"NO", "OAK", "ATL", "WSH", "NE"];
+
+Array.prototype.contains = function(element){
+    return this.indexOf(element) > -1;
+};
+
 // Takes an HTML page and extracts player info from it.
 // @param playerTable A string containing the html which contains a player table.
 function extractPlayerInfo(playerHtmlPage) {
@@ -17,8 +27,6 @@ function extractPlayerInfo(playerHtmlPage) {
 
         for(var i = 0; i < rowCollection.length; i++)
         {
-            var name = '';
-            // ex: Cam Newton, Car QB
             var playerNamePosTeamCombo = $(rowCollection[i]).find(".playertablePlayerName").text();
             var projectedPoints = $(rowCollection[i]).find('.appliedPoints').html();
             // If we got a name and team combo, split it and try to extract the name, team, and position. 
@@ -33,35 +41,71 @@ function extractPlayerInfo(playerHtmlPage) {
 
 // Given an array and original string, fetch me the name.
 // For example, dealing with the string Cam Newton, Car QB.
+// ....Gaaaatttoooorrrraaaaaddeee
 // @param wordArray Array of words containing the original string split up, usually by space and comma. e.g. ['Cam', 'Newton', 'Car', QB]
 // @param originalString Used for mostly debugging purposes. "Cam Newton, Car QB" 
 // @param projectedPoints Double value which we estimate the amount of points a given player is going to get in a week
 function hydratePlayer(wordArray, originalString, projectedPoints)
 {
-    if(wordArray.length < 4 && wordArray[2] != "D/ST")
-    {
-        console.log("Error happened trying to parse " + originalString + " in the getName function.");
-        throw "Player Name cannot be extracted. Expected a string in the format {FirstName} {LastName}, {Team} {Position}"; 
-    }
-
     var name = '';
-    var projected = -1.0;
-    var team = wordArray[wordArray.length - 2];
-    var position = wordArray[wordArray.length -1];
-
-    // -2 because we have the team and position in this string.
-    for(var i = 0; i < wordArray.length - 2; i++)
+    var team = '';
+    var positions = [];
+    var status = '';
+    for(var i = 0; i < wordArray.length; i++)
     {
-        name += wordArray[i];
+        //Makes shorthand easier
+        var word = wordArray[i];
 
-        // If we're not done the name, add a space in the middle of words.
-        if(i + 1 < wordArray.length - 2) {
-            name += ' ';
+        // Since we have D/ST appear twice in the string (EX: Jaguars D/ST D/ST), we gotta
+        // treat it nice and special
+        if(word == "D/ST" && positions.length == 0)
+        {
+            name += ' D/ST'
+            positions.push('D/ST')
+        }
+        // Turns out people can have more than one position. EX: RB / WR
+        if(allPositions.contains(word.toUpperCase()))
+        {
+            positions.push(word);
+        }
+        else if(allStatuses.contains(word.toUpperCase()))
+        {
+            status = word;
+        }
+        else if(teams.contains(word.toUpperCase()))
+        {
+            team = word;
+        }
+        else
+        {
+            if(name)
+            {
+                name += ' ';
+            }
+
+            name += word;
         }
     }
 
-    var player = Player(name, projected, team, position);
-    switch(position){
+    if(positions.length == 0)
+    {
+        console.log("No positions found in " + originalString + " in the hydratePlayer function.");
+    }
+    if(!name)
+    {
+        console.log("Name not found in " + originalString);
+        throw "Name not found in hydratePlayer function";
+    }
+    if(positions.length == 0)
+    {
+        console.log("Position not found in " + originalString);
+        throw "Position not found in hydratePlayer function";
+    }
+
+    var player = new Player(name, projectedPoints, team, positions, status);
+    for(var j = 0; j < player.positions.length; j++)
+    {
+        switch(player.positions[j]){
         case "RB":
             playerJSON.RBs.push(player);
             break;
@@ -77,11 +121,12 @@ function hydratePlayer(wordArray, originalString, projectedPoints)
         case "K":
             playerJSON.Ks.push(player);
             break;
-        case "DS/T":
+        case "D/ST":
             playerJSON.DSTs.push(player);
             break;
         default:
-            console.log("unknown position encountered actual: " + position + " string extracted from " + originalString);
+            console.log("unknown position encountered actual: " + player.positions[j] + " string extracted from " + originalString);
+        }
     }
 }
 
@@ -90,7 +135,7 @@ function BuildEmptyPlayerJSON()
     return { "RBs" : [], "QBs" : [], "TEs" : [], "WRs" : [], "Ks" : [], "DSTs" : []};
 }
 
-function Player(name, projected, team, position)
+function Player(name, projected, team, positions, status)
 {
     // TODO: Make some of these into enums instead of straight strings.
     // ex: Rob Kelley
@@ -100,8 +145,16 @@ function Player(name, projected, team, position)
     // ex: Redskins
     this.team = team;
     // ex: "RB"
-    this.position = position;
+    this.positions = positions;
+    // ex: "Q" for Questionable
+    this.status = status;
 }
+function Team()
+{
+
+}
+
+
 // When we make a request to the website for players we need to add
 // events to handle data event and when end is called.
 // @playerDataResponse Playerdataresponse is a http.incomingmessage object which can be investigated on node's website.
@@ -125,7 +178,6 @@ function handleGetRequestForPlayers(playerDataResponse) {
 app.get('/', function (req, res) {
     response = res;
     playerHttpRequestCompleteCount = 0;
-    "use strict";
     var hostname = req.query.hostname;
     var path = req.query.path;
     if (!hostname) {
